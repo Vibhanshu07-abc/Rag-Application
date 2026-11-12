@@ -15,6 +15,7 @@ from backend.app.generation.prompts import (
 from backend.app.retrieval import (
     RetrievalResult,
     RetrievedChunk,
+    format_chunk_context,
 )
 
 
@@ -265,28 +266,7 @@ class GroundedAnswerService:
     def _format_chunk(chunk: RetrievedChunk) -> str:
         """Format one source chunk for the language-model prompt."""
 
-        header_parts = [
-            f"[{chunk.citation_id}]",
-        ]
-
-        if chunk.filename:
-            header_parts.append(
-                f"file={chunk.filename}"
-            )
-
-        if chunk.page_number is not None:
-            header_parts.append(
-                f"page={chunk.page_number}"
-            )
-
-        if chunk.document_id:
-            header_parts.append(
-                f"document_id={chunk.document_id}"
-            )
-
-        header = " | ".join(header_parts)
-
-        return f"{header}\n{chunk.content}"
+        return format_chunk_context(chunk)
 
     def _build_context(
         self,

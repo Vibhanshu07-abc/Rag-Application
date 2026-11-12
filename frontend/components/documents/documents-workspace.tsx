@@ -28,7 +28,7 @@ import {
   normalizeDocuments,
   normalizeMonitoring,
 } from "@/lib/api";
-import { formatBytes } from "@/lib/format";
+import { formatBytes, isOrgAdminRole } from "@/lib/format";
 import type { Department, DocumentJob, DocumentMonitoring, DocumentRecord } from "@/lib/types";
 
 export function DocumentsWorkspace() {
@@ -51,7 +51,7 @@ export function DocumentsWorkspace() {
   const [replacementId, setReplacementId] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const isOrgAdmin = user?.role === "owner" || user?.role === "admin";
+  const isOrgAdmin = isOrgAdminRole(user?.role);
   const managedDepartmentIds = useMemo(
     () =>
       new Set(

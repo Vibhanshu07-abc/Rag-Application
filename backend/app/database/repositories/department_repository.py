@@ -118,33 +118,24 @@ class DepartmentRepository:
         organization_id: str,
         user_id: str,
     ) -> MembershipRecord | None:
-        statement = (
-            select(MembershipRecord)
-            .join(
-                UserRecord,
-                UserRecord.id == MembershipRecord.user_id,
-            )
-            .where(MembershipRecord.organization_id == organization_id)
-            .where(MembershipRecord.user_id == user_id)
-            .where(MembershipRecord.is_active.is_(True))
-            .where(UserRecord.is_active.is_(True))
+        from backend.app.database.repositories.membership_repository import (
+            MembershipRepository,
         )
 
-        result = await self.session.execute(statement)
-
-        return result.scalar_one_or_none()
+        return await MembershipRepository(self.session).get_active_membership(
+            organization_id=organization_id,
+            user_id=user_id,
+        )
 
     async def get_user_by_id(
         self,
         user_id: str,
     ) -> UserRecord | None:
-        statement = select(UserRecord).where(
-            UserRecord.id == user_id
+        from backend.app.database.repositories.auth_repository import (
+            AuthRepository,
         )
 
-        result = await self.session.execute(statement)
-
-        return result.scalar_one_or_none()
+        return await AuthRepository(self.session).get_user_by_id(user_id)
 
     async def create_membership(
         self,

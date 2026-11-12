@@ -43,6 +43,33 @@ class RetrievedChunk:
     metadata: dict[str, Any]
 
 
+def format_chunk_context(chunk: RetrievedChunk) -> str:
+    """Format one source chunk header and text for LLM prompts."""
+
+    header_parts = [
+        f"[{chunk.citation_id}]",
+    ]
+
+    if chunk.filename:
+        header_parts.append(
+            f"file={chunk.filename}"
+        )
+
+    if chunk.page_number is not None:
+        header_parts.append(
+            f"page={chunk.page_number}"
+        )
+
+    if chunk.document_id:
+        header_parts.append(
+            f"document_id={chunk.document_id}"
+        )
+
+    header = " | ".join(header_parts)
+
+    return f"{header}\n{chunk.content}"
+
+
 @dataclass(frozen=True, slots=True)
 class RetrievalResult:
     """Complete retrieval output for one user query."""
@@ -279,32 +306,7 @@ class RetrievalService:
     ) -> str:
         """Build numbered source blocks for the future LLM prompt."""
 
-        context_blocks: list[str] = []
-
-        for chunk in chunks:
-            header_parts = [
-                f"[{chunk.citation_id}]",
-            ]
-
-            if chunk.filename:
-                header_parts.append(
-                    f"file={chunk.filename}"
-                )
-
-            if chunk.page_number is not None:
-                header_parts.append(
-                    f"page={chunk.page_number}"
-                )
-
-            if chunk.document_id:
-                header_parts.append(
-                    f"document_id={chunk.document_id}"
-                )
-
-            header = " | ".join(header_parts)
-
-            context_blocks.append(
-                f"{header}\n{chunk.content}"
-            )
-
-        return "\n\n".join(context_blocks)
+        return "\n\n".join(
+            format_chunk_context(chunk)
+            for chunk in chunks
+        )

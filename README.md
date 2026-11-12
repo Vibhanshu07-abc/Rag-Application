@@ -126,7 +126,7 @@ Grounded Answer + Source References
 │       ├── rate_limiting/              # Redis rate limiter & FastAPI dependencies
 │       ├── retrieval/                  # Tenant-isolated vector search service
 │       ├── services/                   # Document management, ingestion, storage, job queue, telemetry, RAG, health
-│       ├── vectorstores/               # ChromaDB & Qdrant adapters
+│       ├── vectorstores/               # Tenant-isolated ChromaDB vector store adapter
 │       ├── workers/                    # Background document ingestion worker
 │       └── main.py                     # Uvicorn entrypoint
 │

@@ -27,3 +27,7 @@ export function shortTitle(text: string): string {
   const clean = text.trim().replace(/\s+/g, " ");
   return clean.length > 48 ? `${clean.slice(0, 48).trim()}…` : clean || "New chat";
 }
+
+export function isOrgAdminRole(role?: string | null): boolean {
+  return role === "owner" || role === "admin";
+}

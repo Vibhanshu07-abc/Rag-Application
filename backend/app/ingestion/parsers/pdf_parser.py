@@ -32,17 +32,7 @@ class PDFDocumentParser(BaseDocumentParser):
                     details={"position": position},
                 )
 
-            text = document.page_content or ""
-
-            # Basic structural normalization only.
-            text = (
-                text.replace("\x00", "")
-                .replace("\r\n", "\n")
-                .replace("\r", "\n")
-                .strip()
-            )
-
-            is_empty = not bool(text)
+            text, is_empty = self.normalize_text(document.page_content)
 
             if is_empty:
                 empty_page_count += 1

@@ -59,6 +59,16 @@ class DepartmentAccess:
     role: str
 
 
+def is_organization_admin(access: OrganizationAccess) -> bool:
+    """Return True only for organization owners and administrators."""
+    return access.role in (
+        OrganizationRole.OWNER.value,
+        OrganizationRole.ADMIN.value,
+        OrganizationRole.OWNER,
+        OrganizationRole.ADMIN,
+    )
+
+
 bearer_scheme = HTTPBearer(
     scheme_name="BearerAuth",
     auto_error=False,

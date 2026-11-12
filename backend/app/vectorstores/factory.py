@@ -39,15 +39,14 @@ def get_vector_store(
         )
 
     if provider_name == "qdrant":
-        from backend.app.vectorstores.qdrant_store import (
-            QdrantVectorStore,
-        )
-
-        return QdrantVectorStore(
-            embedding_provider=embedding_provider,
-            organization_id=organization_id,
-            user_id=user_id,
-            knowledge_base_id=knowledge_base_id,
+        raise VectorStoreError(
+            message="The Qdrant vector-store provider is not implemented yet.",
+            details={
+                "provider": provider_name,
+                "supported_providers": [
+                    "chroma",
+                ],
+            },
         )
 
     raise VectorStoreError(

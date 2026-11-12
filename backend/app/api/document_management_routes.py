@@ -14,6 +14,7 @@ from backend.app.api.dependencies import (
     get_database_session_dependency,
     get_embedding_provider_dependency,
     get_organization_access,
+    is_organization_admin,
     require_document_read_access,
     require_document_write_access,
     require_organization_roles,
@@ -63,17 +64,6 @@ router = APIRouter(
 # ---------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------
-
-
-def is_organization_admin(access: OrganizationAccess) -> bool:
-    """
-    Return True only for organization owners and administrators.
-    """
-
-    return access.role in (
-        OrganizationRole.OWNER,
-        OrganizationRole.ADMIN,
-    )
 
 
 def build_document_response(

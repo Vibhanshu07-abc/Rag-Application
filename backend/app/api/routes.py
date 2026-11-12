@@ -17,6 +17,7 @@ from backend.app.api.dependencies import (
     get_embedding_provider_dependency,
     get_llm_provider_dependency,
     get_organization_access,
+    is_organization_admin,
     require_document_read_access,
 )
 from backend.app.api.schemas import (
@@ -86,12 +87,6 @@ rag_query_rate_limit = require_user_rate_limit(
 # =============================================================
 # Access helpers
 # =============================================================
-
-def is_organization_admin(
-    access: OrganizationAccess,
-) -> bool:
-    return can_manage_departments(access.role)
-
 
 async def get_accessible_department_ids(
     *,

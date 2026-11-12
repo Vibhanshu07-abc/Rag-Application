@@ -23,7 +23,7 @@ import {
   normalizeMembers,
   normalizeOrganization,
 } from "@/lib/api";
-import { formatDate, initials } from "@/lib/format";
+import { formatDate, initials, isOrgAdminRole } from "@/lib/format";
 import type {
   Department,
   DepartmentMember,
@@ -60,7 +60,7 @@ export function MembersWorkspace() {
   const [assignDepartmentRole, setAssignDepartmentRole] = useState<DepartmentRole>("employee");
   const [assigningMember, setAssigningMember] = useState(false);
 
-  const isOrgAdmin = user?.role === "owner" || user?.role === "admin";
+  const isOrgAdmin = isOrgAdminRole(user?.role);
   const managedDepartmentIds = useMemo(
     () =>
       new Set(
