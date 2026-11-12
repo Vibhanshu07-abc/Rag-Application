@@ -154,7 +154,7 @@ export default function LoginPage() {
           </p>
 
           <p className="auth-credit">
-            Designed and developed by <strong>Anjum Zahid</strong>
+            Designed and developed by <strong>Vibhanshu</strong>
           </p>
         </div>
       </div>
