@@ -42,6 +42,12 @@ class LogoutRequest(BaseModel):
     )
 
 
+class DepartmentMembershipSummaryResponse(BaseModel):
+    department_id: str
+    department_name: str
+    role: str
+
+
 class UserResponse(BaseModel):
     id: str
     organization_id: str
@@ -50,6 +56,9 @@ class UserResponse(BaseModel):
     full_name: str | None
     role: str
     is_active: bool
+    department_memberships: list[DepartmentMembershipSummaryResponse] = Field(
+        default_factory=list
+    )
 
 
 class TokenResponse(BaseModel):

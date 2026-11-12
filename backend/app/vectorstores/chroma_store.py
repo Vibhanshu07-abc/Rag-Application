@@ -206,6 +206,16 @@ class ChromaVectorStore:
                     "knowledge_base_id": self.knowledge_base_id,
                 }
             )
+            if "user_id" not in metadata:
+                metadata["user_id"] = self.user_id
+
+            doc_id = metadata.get("document_id")
+            vector_id = self._create_vector_id(
+                str(chunk_id),
+                document_id=str(doc_id) if doc_id is not None else None,
+            )
+
+            metadata["vector_id"] = vector_id
 
             prepared_documents.append(
                 Document(
@@ -214,9 +224,6 @@ class ChromaVectorStore:
                 )
             )
 
-            vector_id = self._create_vector_id(str(chunk_id))
-
-            metadata["vector_id"] = vector_id
             document_ids.append(vector_id)
 
         logger.info(
@@ -257,6 +264,7 @@ class ChromaVectorStore:
         *,
         k: int | None = None,
         document_id: str | None = None,
+        published_only: bool = True,
     ) -> list[Document]:
         """
         Search only documents visible to the authenticated organization user.
@@ -298,10 +306,16 @@ class ChromaVectorStore:
                 }
             )
 
-        filter_conditions.append(
-            {"$or": visibility_conditions}
-        )
+        if len(visibility_conditions) == 1:
+            filter_conditions.append(visibility_conditions[0])
+        else:
+            filter_conditions.append(
+                {"$or": visibility_conditions}
+            )
         filter_conditions.append({"is_current": {"$eq": True}})
+
+        if published_only:
+            filter_conditions.append({"is_published": {"$eq": True}})
 
         if document_id is not None:
             filter_conditions.append(
@@ -385,13 +399,15 @@ class ChromaVectorStore:
             chunk_count=len(cleaned_ids),
         )
 
-    def set_current_version(
+    def set_version_state(
         self,
         vector_ids: Sequence[str],
         *,
-        is_current: bool,
+        is_current: bool | None = None,
+        is_published: bool | None = None,
+        status: str | None = None,
     ) -> None:
-        """Make a document version retrievable or archived without deleting it."""
+        """Update current-version and publication metadata in Chroma."""
 
         cleaned_ids = [vector_id.strip() for vector_id in vector_ids if vector_id.strip()]
         if not cleaned_ids:
@@ -416,17 +432,49 @@ class ChromaVectorStore:
                         message="Document version metadata is missing in Chroma.",
                         details={"vector_id": vector_id},
                     )
-                metadata["is_current"] = is_current
+                if is_current is not None:
+                    metadata["is_current"] = is_current
+                if is_published is not None:
+                    metadata["is_published"] = is_published
+                if status is not None:
+                    metadata["status"] = status
                 updated_metadata.append(metadata)
             self._store._collection.update(
                 ids=cleaned_ids,
                 metadatas=updated_metadata,
             )
+        except VectorStoreError:
+            raise
         except Exception as exc:
             raise VectorStoreError(
                 message="Document version metadata could not be updated in Chroma.",
                 details={"chunk_count": len(cleaned_ids), "error_type": type(exc).__name__},
             ) from exc
+
+    def set_current_version(
+        self,
+        vector_ids: Sequence[str],
+        *,
+        is_current: bool,
+    ) -> None:
+        """Make a document version current or non-current without deleting it."""
+
+        self.set_version_state(vector_ids, is_current=is_current)
+
+    def set_publication_status(
+        self,
+        vector_ids: Sequence[str],
+        *,
+        is_published: bool,
+        status: str,
+    ) -> None:
+        """Update publication state metadata for stored document chunks."""
+
+        self.set_version_state(
+            vector_ids,
+            is_published=is_published,
+            status=status,
+        )
 
     def close(self) -> None:
         """Close the underlying Chroma client when supported."""
@@ -556,11 +604,24 @@ class ChromaVectorStore:
             if isinstance(value, allowed_types)
         }
 
-    def _create_vector_id(self, chunk_id: str) -> str:
-        value = (
-            f"{self.organization_id}:"
-            f"{self.knowledge_base_id}:"
-            f"{chunk_id}"
-        )
+    def _create_vector_id(
+        self,
+        chunk_id: str,
+        *,
+        document_id: str | None = None,
+    ) -> str:
+        if document_id:
+            value = (
+                f"{self.organization_id}:"
+                f"{self.knowledge_base_id}:"
+                f"{document_id}:"
+                f"{chunk_id}"
+            )
+        else:
+            value = (
+                f"{self.organization_id}:"
+                f"{self.knowledge_base_id}:"
+                f"{chunk_id}"
+            )
 
         return sha256(value.encode("utf-8")).hexdigest()

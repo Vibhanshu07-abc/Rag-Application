@@ -1,8 +1,11 @@
 import type {
-  DocumentRecord,
   Department,
+  DepartmentMember,
+  DepartmentMembershipSummary,
+  DepartmentRole,
   DocumentJob,
   DocumentMonitoring,
+  DocumentRecord,
   OrganizationInfo,
   OrganizationMember,
   OrganizationRole,
@@ -90,9 +93,26 @@ function roleValue(value: unknown): OrganizationRole {
   return value === "owner" || value === "admin" || value === "member" || value === "viewer" ? value : "member";
 }
 
+function departmentRoleValue(value: unknown): DepartmentRole {
+  return value === "department_admin" ? "department_admin" : "employee";
+}
+
 export function normalizeUser(value: unknown): UserProfile {
   const root = asRecord(value);
   const data = asRecord(root.user ?? root.profile ?? root.data ?? value);
+  const rawMemberships = Array.isArray(data.department_memberships) ? data.department_memberships : [];
+  const department_memberships: DepartmentMembershipSummary[] = rawMemberships
+    .map((item) => {
+      const entry = asRecord(item);
+      const departmentId = stringValue(entry.department_id);
+      if (!departmentId) return null;
+      return {
+        department_id: departmentId,
+        department_name: stringValue(entry.department_name, departmentId),
+        role: departmentRoleValue(entry.role),
+      };
+    })
+    .filter((item): item is DepartmentMembershipSummary => item !== null);
   return {
     id: stringValue(data.id ?? data.user_id),
     organization_id: stringValue(data.organization_id),
@@ -100,6 +120,7 @@ export function normalizeUser(value: unknown): UserProfile {
     full_name: stringValue(data.full_name ?? data.name, stringValue(data.email, "User")),
     role: roleValue(data.role),
     is_active: boolValue(data.is_active),
+    department_memberships,
   };
 }
 
@@ -145,7 +166,11 @@ export function normalizeDocuments(value: unknown): { documents: DocumentRecord[
       logical_document_id: stringValue(data.logical_document_id),
       version_number: typeof data.version_number === "number" ? data.version_number : 1,
       is_current: boolValue(data.is_current),
+      is_published: boolValue(data.is_published, false),
+      published_at: typeof data.published_at === "string" ? data.published_at : null,
+      published_by_user_id: typeof data.published_by_user_id === "string" ? data.published_by_user_id : null,
       archived_at: typeof data.archived_at === "string" ? data.archived_at : null,
+      archived_by_user_id: typeof data.archived_by_user_id === "string" ? data.archived_by_user_id : null,
       visibility: data.visibility === "department" ? "department" : "organization",
       department_id: typeof data.department_id === "string" ? data.department_id : null,
     } satisfies DocumentRecord;
@@ -162,6 +187,23 @@ export function normalizeDepartments(value: unknown): Department[] {
   const root = asRecord(value);
   const list = Array.isArray(root.departments) ? root.departments : [];
   return list.map((entry) => { const data = asRecord(entry); return { id: stringValue(data.id), name: stringValue(data.name), slug: stringValue(data.slug), is_active: boolValue(data.is_active) }; });
+}
+
+export function normalizeDepartmentMembers(value: unknown, departmentId = ""): DepartmentMember[] {
+  const root = asRecord(value);
+  const list = Array.isArray(root.members) ? root.members : Array.isArray(value) ? value : [];
+  return list.map((entry) => {
+    const data = asRecord(entry);
+    return {
+      id: stringValue(data.id ?? data.membership_id),
+      department_id: stringValue(data.department_id, departmentId),
+      user_id: stringValue(data.user_id),
+      email: stringValue(data.email),
+      full_name: stringValue(data.full_name, stringValue(data.email, "Member")),
+      role: departmentRoleValue(data.role),
+      is_active: boolValue(data.is_active),
+    };
+  });
 }
 
 export function normalizeDocumentJob(value: unknown): DocumentJob {

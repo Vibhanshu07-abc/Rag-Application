@@ -13,13 +13,6 @@ class Settings(BaseSettings):
     chunk_size: int = Field(default=1000, ge=100, le=5000)
     chunk_overlap: int = Field(default=200, ge=0, le=1000)
 
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-        extra="ignore",
-    )
-
     embedding_model_name: str = "sentence-transformers/all-MiniLM-L6-v2"
     embedding_device: str = "cpu"
     embedding_batch_size: int = Field(default=32, ge=1, le=512)
@@ -108,12 +101,6 @@ class Settings(BaseSettings):
     # Database created inside every organization-specific Chroma tenant.
     chroma_database_name: str = "rag_app"
 
-    # Default number of relevant chunks returned during retrieval.
-    retrieval_top_k: int = Field(
-        default=4,
-        ge=1,
-        le=50,
-    )
 
 # ===========================================
 

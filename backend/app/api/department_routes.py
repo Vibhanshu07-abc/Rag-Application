@@ -73,6 +73,8 @@ async def list_departments(
 ) -> DepartmentListResponse:
     departments = await DepartmentService(session=session).list_departments(
         organization_id=access.organization_id,
+        actor_role=access.role,
+        actor_user_id=access.user_id,
     )
 
     return DepartmentListResponse(
@@ -104,12 +106,16 @@ async def create_department(
     response_model=DepartmentMemberListResponse,
 )
 async def list_department_members(
-    department_access: DepartmentAccess = Depends(get_department_access),
+    department_id: str,
+    organization_access: OrganizationAccess = Depends(get_organization_access),
+    department_access: DepartmentAccess | None = Depends(get_department_access_optional),
     session: AsyncSession = Depends(get_database_session_dependency),
 ) -> DepartmentMemberListResponse:
     members = await DepartmentService(session=session).list_members(
-        department_id=department_access.department_id,
-        organization_id=department_access.organization_id,
+        department_id=department_id,
+        organization_id=organization_access.organization_id,
+        actor_organization_role=organization_access.role,
+        actor_department_role=(department_access.role if department_access else None),
     )
 
     return DepartmentMemberListResponse(

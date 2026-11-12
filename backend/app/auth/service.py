@@ -1,6 +1,6 @@
 import hashlib
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -28,6 +28,9 @@ from backend.app.database.models.membership import (
 )
 from backend.app.database.repositories.auth_repository import (
     AuthRepository,
+)
+from backend.app.database.repositories.department_repository import (
+    DepartmentRepository,
 )
 from backend.app.database.repositories.membership_repository import (
     MembershipRepository,
@@ -96,6 +99,13 @@ def hash_refresh_token(
 
 
 @dataclass(frozen=True, slots=True)
+class AuthDepartmentMembership:
+    department_id: str
+    department_name: str
+    role: str
+
+
+@dataclass(frozen=True, slots=True)
 class AuthUser:
     id: str
     organization_id: str
@@ -104,6 +114,9 @@ class AuthUser:
     full_name: str | None
     role: str
     is_active: bool
+    department_memberships: tuple[AuthDepartmentMembership, ...] = field(
+        default_factory=tuple
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,6 +135,7 @@ class AuthenticationService:
         session: AsyncSession,
         repository: AuthRepository | None = None,
         membership_repository: MembershipRepository | None = None,
+        department_repository: DepartmentRepository | None = None,
         passwords: PasswordService = password_service,
         tokens: JWTService = jwt_service,
     ) -> None:
@@ -135,6 +149,11 @@ class AuthenticationService:
         self.memberships = (
             membership_repository
             or MembershipRepository(session)
+        )
+
+        self.departments = (
+            department_repository
+            or DepartmentRepository(session)
         )
 
         self.passwords = passwords
@@ -327,11 +346,17 @@ class AuthenticationService:
 
         await self.session.commit()
 
+        department_memberships = await self._load_department_memberships(
+            organization_id=user_record.organization_id,
+            user_id=user_record.id,
+        )
+
         return self._build_auth_result(
             user=user_record,
             organization=organization,
             membership=membership,
             token_pair=token_pair,
+            department_memberships=department_memberships,
         )
 
     async def refresh(
@@ -486,11 +511,17 @@ class AuthenticationService:
 
         await self.session.commit()
 
+        department_memberships = await self._load_department_memberships(
+            organization_id=user.organization_id,
+            user_id=user.id,
+        )
+
         return self._build_auth_result(
             user=user,
             organization=organization,
             membership=membership,
             token_pair=token_pair,
+            department_memberships=department_memberships,
         )
 
     async def logout(
@@ -600,10 +631,35 @@ class AuthenticationService:
                 )
             )
 
+        department_memberships = await self._load_department_memberships(
+            organization_id=organization_id,
+            user_id=user_id,
+        )
+
         return self._build_user_response(
             user=user,
             organization=organization,
             membership=membership,
+            department_memberships=department_memberships,
+        )
+
+    async def _load_department_memberships(
+        self,
+        *,
+        organization_id: str,
+        user_id: str,
+    ) -> tuple[AuthDepartmentMembership, ...]:
+        rows = await self.departments.list_active_memberships_for_user(
+            organization_id=organization_id,
+            user_id=user_id,
+        )
+        return tuple(
+            AuthDepartmentMembership(
+                department_id=department.id,
+                department_name=department.name,
+                role=dept_membership.role,
+            )
+            for dept_membership, department in rows
         )
 
     async def _issue_and_store_token_pair(
@@ -654,12 +710,14 @@ class AuthenticationService:
         organization: OrganizationRecord,
         membership: MembershipRecord,
         token_pair: TokenPair,
+        department_memberships: tuple[AuthDepartmentMembership, ...] = (),
     ) -> AuthResult:
         return AuthResult(
             user=self._build_user_response(
                 user=user,
                 organization=organization,
                 membership=membership,
+                department_memberships=department_memberships,
             ),
             access_token=(
                 token_pair.access_token
@@ -681,6 +739,7 @@ class AuthenticationService:
         user: UserRecord,
         organization: OrganizationRecord,
         membership: MembershipRecord,
+        department_memberships: tuple[AuthDepartmentMembership, ...] = (),
     ) -> AuthUser:
         return AuthUser(
             id=user.id,
@@ -697,4 +756,5 @@ class AuthenticationService:
                 user.is_active
                 and membership.is_active
             ),
+            department_memberships=department_memberships,
         )

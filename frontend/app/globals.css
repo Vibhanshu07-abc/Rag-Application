@@ -242,8 +242,21 @@ html[data-theme="dark"] .file-icon { background: #4b3033; }
 .document-name small { display: block; color: var(--muted); margin-top: 3px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 8px; font-family: ui-monospace, monospace; }
 .kb-pill, .status-badge { display: inline-flex; align-items: center; gap: 4px; padding: 5px 7px; border-radius: 7px; background: var(--surface-2); color: var(--text); font-size: 9px; font-weight: 650; }
 .status-badge { text-transform: capitalize; }
-.status-completed { background: var(--accent-soft); color: var(--accent); }
+.status-completed { background: var(--surface-2); color: var(--text); }
+.status-published { background: var(--accent-soft); color: var(--accent); }
+.status-pending, .status-processing, .status-queued { background: color-mix(in srgb, var(--accent) 10%, var(--surface-2)); color: var(--text); }
+.status-archived { background: var(--surface-2); color: var(--muted); opacity: .82; }
 .status-failed { background: var(--danger-soft); color: var(--danger); }
+.table-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
+.action-pill { height: 28px; padding: 0 9px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text); font-size: 10px; font-weight: 650; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.action-pill:hover:not(:disabled) { background: var(--surface-2); border-color: var(--border-strong); }
+.action-pill.accent { border-color: transparent; background: var(--accent-soft); color: var(--accent); }
+.action-pill:disabled { opacity: .5; cursor: not-allowed; }
+.section-block { margin-top: 26px; }
+.section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.section-heading h2 { margin: 0; font-size: 18px; }
+.section-heading p { margin: 3px 0 0; color: var(--muted); font-size: 11px; }
+.inline-form-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
 .danger-icon-button { width: 32px; height: 32px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center; cursor: pointer; }
 .danger-icon-button:hover { background: var(--danger-soft); color: var(--danger); }
 .table-loader, .empty-state-card { min-height: 330px; border: 1px dashed var(--border-strong); border-radius: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--muted); gap: 10px; margin-top: 10px; }

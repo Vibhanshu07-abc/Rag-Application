@@ -32,11 +32,11 @@ class DocumentRecord(Base):
     __tablename__ = "document_records"
 
     __table_args__ = (
-        UniqueConstraint(
+        Index(
+            "ix_document_organization_knowledge_base_hash",
             "organization_id",
             "knowledge_base_id",
             "file_hash",
-            name="uq_document_organization_knowledge_base_hash",
         ),
         Index(
             "ix_document_owner_knowledge_base",
@@ -62,6 +62,13 @@ class DocumentRecord(Base):
             "organization_id",
             "knowledge_base_id",
             "logical_document_id",
+            "is_current",
+        ),
+        Index(
+            "ix_document_org_published_current",
+            "organization_id",
+            "knowledge_base_id",
+            "is_published",
             "is_current",
         ),
     )
@@ -123,8 +130,29 @@ class DocumentRecord(Base):
         server_default="1",
     )
 
+    is_published: Mapped[bool] = mapped_column(
+        nullable=False,
+        default=False,
+        server_default="0",
+    )
+
+    published_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+    )
+
+    published_by_user_id: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+    )
+
     archived_at: Mapped[datetime | None] = mapped_column(
         DateTime,
+        nullable=True,
+    )
+
+    archived_by_user_id: Mapped[str | None] = mapped_column(
+        String(64),
         nullable=True,
     )
 

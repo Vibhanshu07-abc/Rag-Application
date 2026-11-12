@@ -197,7 +197,7 @@ class GeminiLLMProvider(BaseLLMProvider):
                 )
 
                 if not should_retry:
-                    logger.errorr(
+                    logger.error(
                         "gemini_generation_failed",
                         model=self.model_name,
                         status_code=status_code,

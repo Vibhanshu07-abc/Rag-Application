@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 
 from fastapi import (
@@ -32,8 +33,10 @@ from backend.app.auth.roles import (
 from backend.app.core.config import settings
 from backend.app.core.exceptions import (
     AuthorizationError,
+    ConflictError,
     InvalidUploadError,
 )
+from backend.app.core.logging import get_logger
 from backend.app.database.enums import DocumentVisibility
 from backend.app.database.repositories import DocumentRepository
 from backend.app.database.repositories.audit_repository import AuditRepository
@@ -54,6 +57,8 @@ from backend.app.services.document_job_queue import RedisDocumentJobQueue
 from backend.app.services.rag_query import RAGQueryService
 from backend.app.vectorstores.factory import get_vector_store
 
+
+logger = get_logger(__name__)
 
 router = APIRouter(
     prefix=settings.api_prefix,
@@ -325,6 +330,19 @@ async def upload_document(
     # Store file and create durable ingestion job
     # ---------------------------------------------------------
 
+    jobs = DocumentJobRepository(session)
+
+    if replaces_document_id:
+        has_active_replacement = await jobs.has_active_replacement_job(
+            organization_id=access.organization_id,
+            replaces_document_id=replaces_document_id,
+        )
+        if has_active_replacement:
+            raise ConflictError(
+                message="A replacement upload for this document is already queued or processing.",
+                details={"replaces_document_id": replaces_document_id},
+            )
+
     safe_filename = Path(
         (file.filename or "document").replace("\\", "/")
     ).name
@@ -335,8 +353,6 @@ async def upload_document(
     )
 
     try:
-        jobs = DocumentJobRepository(session)
-
         job = await jobs.create(
             organization_id=access.organization_id,
             user_id=access.user_id,
@@ -373,9 +389,16 @@ async def upload_document(
     # Enqueue ingestion job
     # ---------------------------------------------------------
 
-    await RedisDocumentJobQueue(
-        get_redis_client()
-    ).enqueue(job.id)
+    try:
+        await RedisDocumentJobQueue(
+            get_redis_client()
+        ).enqueue(job.id)
+    except Exception as exc:
+        logger.warning(
+            "document_job_enqueue_deferred",
+            job_id=job.id,
+            error_type=type(exc).__name__,
+        )
 
     return DocumentUploadResponse(
         job_id=job.id,
@@ -431,27 +454,32 @@ async def rag_query(
         department_ids=department_ids,
     )
 
-    retrieval_service = RetrievalService(
-        vector_store=vector_store,
-        default_k=settings.retrieval_top_k,
-        max_k=20,
-    )
+    try:
+        retrieval_service = RetrievalService(
+            vector_store=vector_store,
+            default_k=settings.retrieval_top_k,
+            max_k=20,
+        )
 
-    generation_service = GroundedAnswerService(
-        llm_provider=llm_provider,
-        max_context_characters=24_000,
-    )
+        generation_service = GroundedAnswerService(
+            llm_provider=llm_provider,
+            max_context_characters=24_000,
+        )
 
-    rag_service = RAGQueryService(
-        retrieval_service=retrieval_service,
-        generation_service=generation_service,
-    )
+        rag_service = RAGQueryService(
+            retrieval_service=retrieval_service,
+            generation_service=generation_service,
+        )
 
-    result = await rag_service.answer(
-        query=request.query,
-        k=request.k,
-        document_id=request.document_id,
-    )
+        result = await rag_service.answer(
+            query=request.query,
+            k=request.k,
+            document_id=request.document_id,
+        )
+    finally:
+        close_method = getattr(vector_store, "close", None)
+        if callable(close_method):
+            await asyncio.to_thread(close_method)
 
     return RAGQueryResponse(
         query=result.query,

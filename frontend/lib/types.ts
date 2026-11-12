@@ -1,4 +1,11 @@
 export type OrganizationRole = "owner" | "admin" | "member" | "viewer";
+export type DepartmentRole = "department_admin" | "employee";
+
+export interface DepartmentMembershipSummary {
+  department_id: string;
+  department_name: string;
+  role: DepartmentRole;
+}
 
 export interface UserProfile {
   id: string;
@@ -7,6 +14,7 @@ export interface UserProfile {
   full_name: string;
   role: OrganizationRole;
   is_active: boolean;
+  department_memberships: DepartmentMembershipSummary[];
 }
 
 export interface TokenBundle {
@@ -35,12 +43,26 @@ export interface DocumentRecord {
   logical_document_id?: string;
   version_number?: number;
   is_current?: boolean;
+  is_published?: boolean;
+  published_at?: string | null;
+  published_by_user_id?: string | null;
   archived_at?: string | null;
+  archived_by_user_id?: string | null;
   visibility?: "organization" | "department";
   department_id?: string | null;
 }
 
 export interface Department { id: string; name: string; slug: string; is_active: boolean; }
+
+export interface DepartmentMember {
+  id: string;
+  department_id: string;
+  user_id: string;
+  email: string;
+  full_name: string;
+  role: DepartmentRole;
+  is_active: boolean;
+}
 export interface DocumentJob {
   id: string; status: string; filename: string; document_id: string | null;
   error_message: string | null; attempt_count: number; max_attempts: number;

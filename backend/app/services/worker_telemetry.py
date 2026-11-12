@@ -4,6 +4,7 @@ import tracemalloc
 from uuid import uuid4
 
 from redis.asyncio import Redis
+from redis.exceptions import RedisError
 
 
 class WorkerTelemetry:
@@ -15,28 +16,35 @@ class WorkerTelemetry:
         self.client = client
         self.worker_id = worker_id or f"{os.getpid()}-{uuid4().hex[:8]}"
         self.started_at = time.monotonic()
-        tracemalloc.start()
+        if not tracemalloc.is_tracing():
+            tracemalloc.start()
 
     async def heartbeat(self, active_jobs: int) -> None:
         current, peak = tracemalloc.get_traced_memory()
-        await self.client.hset(
-            f"{self.key_prefix}{self.worker_id}",
-            mapping={
-                "worker_id": self.worker_id,
-                "pid": str(os.getpid()),
-                "active_jobs": str(active_jobs),
-                "cpu_seconds": f"{time.process_time():.3f}",
-                "uptime_seconds": f"{time.monotonic() - self.started_at:.3f}",
-                "python_memory_bytes": str(current),
-                "python_memory_peak_bytes": str(peak),
-            },
-        )
-        await self.client.expire(f"{self.key_prefix}{self.worker_id}", 30)
+        try:
+            await self.client.hset(
+                f"{self.key_prefix}{self.worker_id}",
+                mapping={
+                    "worker_id": self.worker_id,
+                    "pid": str(os.getpid()),
+                    "active_jobs": str(active_jobs),
+                    "cpu_seconds": f"{time.process_time():.3f}",
+                    "uptime_seconds": f"{time.monotonic() - self.started_at:.3f}",
+                    "python_memory_bytes": str(current),
+                    "python_memory_peak_bytes": str(peak),
+                },
+            )
+            await self.client.expire(f"{self.key_prefix}{self.worker_id}", 30)
+        except RedisError:
+            pass
 
     async def snapshots(self) -> list[dict[str, str]]:
         snapshots: list[dict[str, str]] = []
-        async for key in self.client.scan_iter(match=f"{self.key_prefix}*"):
-            values = await self.client.hgetall(key)
-            if values:
-                snapshots.append({str(name): str(value) for name, value in values.items()})
+        try:
+            async for key in self.client.scan_iter(match=f"{self.key_prefix}*"):
+                values = await self.client.hgetall(key)
+                if values:
+                    snapshots.append({str(name): str(value) for name, value in values.items()})
+        except RedisError:
+            return []
         return snapshots

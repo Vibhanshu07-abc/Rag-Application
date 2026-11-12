@@ -88,6 +88,30 @@ class DepartmentRepository:
 
         return list(result.scalars().all())
 
+    async def list_departments_for_user(
+        self,
+        *,
+        organization_id: str,
+        user_id: str,
+    ) -> list[DepartmentRecord]:
+        statement = (
+            select(DepartmentRecord)
+            .join(
+                DepartmentMembershipRecord,
+                DepartmentMembershipRecord.department_id == DepartmentRecord.id,
+            )
+            .where(DepartmentRecord.organization_id == organization_id)
+            .where(DepartmentRecord.is_active.is_(True))
+            .where(DepartmentMembershipRecord.organization_id == organization_id)
+            .where(DepartmentMembershipRecord.user_id == user_id)
+            .where(DepartmentMembershipRecord.is_active.is_(True))
+            .order_by(DepartmentRecord.name.asc())
+        )
+
+        result = await self.session.execute(statement)
+
+        return list(result.scalars().all())
+
     async def get_active_organization_membership(
         self,
         *,
@@ -96,9 +120,14 @@ class DepartmentRepository:
     ) -> MembershipRecord | None:
         statement = (
             select(MembershipRecord)
+            .join(
+                UserRecord,
+                UserRecord.id == MembershipRecord.user_id,
+            )
             .where(MembershipRecord.organization_id == organization_id)
             .where(MembershipRecord.user_id == user_id)
             .where(MembershipRecord.is_active.is_(True))
+            .where(UserRecord.is_active.is_(True))
         )
 
         result = await self.session.execute(statement)
@@ -147,7 +176,7 @@ class DepartmentRepository:
 
         return membership
 
-    async def get_active_membership(
+    async def get_membership_for_user(
         self,
         *,
         department_id: str,
@@ -159,7 +188,31 @@ class DepartmentRepository:
             .where(DepartmentMembershipRecord.department_id == department_id)
             .where(DepartmentMembershipRecord.organization_id == organization_id)
             .where(DepartmentMembershipRecord.user_id == user_id)
+            .with_for_update()
+        )
+
+        result = await self.session.execute(statement)
+
+        return result.scalar_one_or_none()
+
+    async def get_active_membership(
+        self,
+        *,
+        department_id: str,
+        organization_id: str,
+        user_id: str,
+    ) -> DepartmentMembershipRecord | None:
+        statement = (
+            select(DepartmentMembershipRecord)
+            .join(
+                DepartmentRecord,
+                DepartmentRecord.id == DepartmentMembershipRecord.department_id,
+            )
+            .where(DepartmentMembershipRecord.department_id == department_id)
+            .where(DepartmentMembershipRecord.organization_id == organization_id)
+            .where(DepartmentMembershipRecord.user_id == user_id)
             .where(DepartmentMembershipRecord.is_active.is_(True))
+            .where(DepartmentRecord.is_active.is_(True))
         )
 
         result = await self.session.execute(statement)
@@ -174,14 +227,42 @@ class DepartmentRepository:
     ) -> list[str]:
         statement = (
             select(DepartmentMembershipRecord.department_id)
+            .join(
+                DepartmentRecord,
+                DepartmentRecord.id == DepartmentMembershipRecord.department_id,
+            )
             .where(DepartmentMembershipRecord.organization_id == organization_id)
             .where(DepartmentMembershipRecord.user_id == user_id)
             .where(DepartmentMembershipRecord.is_active.is_(True))
+            .where(DepartmentRecord.is_active.is_(True))
         )
 
         result = await self.session.execute(statement)
 
         return list(result.scalars().all())
+
+    async def list_active_memberships_for_user(
+        self,
+        *,
+        organization_id: str,
+        user_id: str,
+    ) -> list[tuple[DepartmentMembershipRecord, DepartmentRecord]]:
+        statement = (
+            select(DepartmentMembershipRecord, DepartmentRecord)
+            .join(
+                DepartmentRecord,
+                DepartmentRecord.id == DepartmentMembershipRecord.department_id,
+            )
+            .where(DepartmentMembershipRecord.organization_id == organization_id)
+            .where(DepartmentMembershipRecord.user_id == user_id)
+            .where(DepartmentMembershipRecord.is_active.is_(True))
+            .where(DepartmentRecord.is_active.is_(True))
+            .order_by(DepartmentRecord.name.asc())
+        )
+
+        result = await self.session.execute(statement)
+
+        return list(result.all())
 
     async def get_membership_for_update(
         self,
@@ -229,6 +310,18 @@ class DepartmentRepository:
         membership: DepartmentMembershipRecord,
         role: str,
     ) -> DepartmentMembershipRecord:
+        membership.role = role
+        await self.session.flush()
+
+        return membership
+
+    async def reactivate_membership(
+        self,
+        *,
+        membership: DepartmentMembershipRecord,
+        role: str,
+    ) -> DepartmentMembershipRecord:
+        membership.is_active = True
         membership.role = role
         await self.session.flush()
 

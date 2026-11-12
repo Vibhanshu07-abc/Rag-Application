@@ -311,6 +311,10 @@ def token_response_from_result(
 def user_response_from_auth_user(
     user: AuthUser,
 ) -> UserResponse:
+    from backend.app.api.auth_schemas import (
+        DepartmentMembershipSummaryResponse,
+    )
+
     return UserResponse(
         id=user.id,
         organization_id=(
@@ -323,4 +327,12 @@ def user_response_from_auth_user(
         full_name=user.full_name,
         role=user.role,
         is_active=user.is_active,
+        department_memberships=[
+            DepartmentMembershipSummaryResponse(
+                department_id=membership.department_id,
+                department_name=membership.department_name,
+                role=membership.role,
+            )
+            for membership in user.department_memberships
+        ],
     )

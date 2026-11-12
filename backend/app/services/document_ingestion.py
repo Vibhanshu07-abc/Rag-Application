@@ -152,10 +152,17 @@ class DocumentIngestionService:
         allowed_extensions: Sequence[str] = (".pdf", ".docx"),
         logical_document_id: str | None = None,
         version_number: int = 1,
+        is_current_initial: bool = True,
+        original_filename: str | None = None,
     ) -> DocumentIngestionResult:
-        """Process one supported document and register its current version."""
+        """Process one supported document and register its version."""
 
         resolved_path = Path(file_path).resolve()
+        effective_filename = (
+            Path(original_filename.replace("\\", "/")).name
+            if original_filename
+            else resolved_path.name
+        )
 
         self._validate_document_path(resolved_path, allowed_extensions)
 
@@ -192,7 +199,8 @@ class DocumentIngestionService:
                 knowledge_base_id=knowledge_base_id,
                 logical_document_id=logical_document_id,
                 version_number=version_number,
-                filename=resolved_path.name,
+                is_current=is_current_initial,
+                filename=effective_filename,
                 file_hash=file_hash,
                 file_size_bytes=resolved_path.stat().st_size,
             )
@@ -205,6 +213,7 @@ class DocumentIngestionService:
                 document_id=document_id,
                 organization_id=organization_id,
                 user_id=user_id,
+                include_all_departments=True,
                 status=DocumentStatus.PROCESSING,
             )
             await self.session.commit()
@@ -218,7 +227,7 @@ class DocumentIngestionService:
                 raise DocumentIngestionError(
                     message="The document loader returned no content.",
                     details={
-                        "filename": resolved_path.name,
+                        "filename": effective_filename,
                     },
                 )
 
@@ -252,12 +261,14 @@ class DocumentIngestionService:
                 user_id=user_id,
                 knowledge_base_id=knowledge_base_id,
                 file_hash=file_hash,
-                filename=resolved_path.name,
+                filename=effective_filename,
                 visibility=visibility.value,
                 department_id=department_id,
                 logical_document_id=document_record.logical_document_id,
                 version_number=document_record.version_number,
-                is_current=True,
+                is_current=is_current_initial,
+                is_published=False,
+                status=DocumentStatus.COMPLETED.value,
             )
 
             stored_vector_ids = await asyncio.to_thread(
@@ -294,6 +305,7 @@ class DocumentIngestionService:
                 document_id=document_id,
                 organization_id=organization_id,
                 user_id=user_id,
+                include_all_departments=True,
                 status=DocumentStatus.COMPLETED,
                 embedding_provider=self.embedding_provider_name,
                 embedding_model=self.embedding_model_name,
@@ -352,7 +364,7 @@ class DocumentIngestionService:
             logger.exception(
                 "document_ingestion_failed",
                 document_id=document_id,
-                filename=resolved_path.name,
+                filename=effective_filename,
                 error_type=type(exc).__name__,
             )
 
@@ -362,7 +374,7 @@ class DocumentIngestionService:
             raise DocumentIngestionError(
                 details={
                     "document_id": document_id,
-                    "filename": resolved_path.name,
+                    "filename": effective_filename,
                     "error_type": type(exc).__name__,
                     "error_message": str(exc),
                 }
@@ -383,6 +395,7 @@ class DocumentIngestionService:
                 document_id=document_id,
                 organization_id=organization_id,
                 user_id=user_id,
+                include_all_departments=True,
                 status=DocumentStatus.FAILED,
                 error_message=error_message[:2000],
             )
@@ -403,7 +416,7 @@ class DocumentIngestionService:
     ) -> None:
         if not file_path.exists():
             raise DocumentIngestionError(
-                message="The PDF file does not exist.",
+                message="The document file does not exist.",
                 details={
                     "file_path": str(file_path),
                 },
@@ -452,6 +465,8 @@ class DocumentIngestionService:
         logical_document_id: str,
         version_number: int,
         is_current: bool,
+        is_published: bool = False,
+        status: str = DocumentStatus.COMPLETED.value,
     ) -> None:
         """
         Add mandatory ownership and document metadata to every chunk.
@@ -471,6 +486,8 @@ class DocumentIngestionService:
                     "logical_document_id": logical_document_id,
                     "version_number": version_number,
                     "is_current": is_current,
+                    "is_published": is_published,
+                    "status": status,
                 }
             )
 

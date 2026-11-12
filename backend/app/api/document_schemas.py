@@ -13,7 +13,11 @@ class DocumentResponse(BaseModel):
     logical_document_id: str
     version_number: int
     is_current: bool
+    is_published: bool
+    published_at: datetime | None
+    published_by_user_id: str | None
     archived_at: datetime | None
+    archived_by_user_id: str | None
     visibility: str
     department_id: str | None
     filename: str

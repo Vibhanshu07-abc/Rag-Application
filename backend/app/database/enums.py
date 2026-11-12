@@ -2,12 +2,14 @@ from enum import StrEnum
 
 
 class DocumentStatus(StrEnum):
-    """Possible states of the document ingestion process."""
+    """Possible states of the document ingestion and publishing lifecycle."""
 
     PENDING = "pending"
     PROCESSING = "processing"
     COMPLETED = "completed"
+    PUBLISHED = "published"
     FAILED = "failed"
+    ARCHIVED = "archived"
     DELETING = "deleting"
 
 

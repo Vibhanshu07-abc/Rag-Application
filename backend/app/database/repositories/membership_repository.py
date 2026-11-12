@@ -60,9 +60,14 @@ class MembershipRepository:
     ) -> MembershipRecord | None:
         statement = (
             select(MembershipRecord)
+            .join(
+                UserRecord,
+                UserRecord.id == MembershipRecord.user_id,
+            )
             .where(MembershipRecord.organization_id == organization_id)
             .where(MembershipRecord.user_id == user_id)
             .where(MembershipRecord.is_active.is_(True))
+            .where(UserRecord.is_active.is_(True))
         )
 
         result = await self.session.execute(statement)

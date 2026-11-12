@@ -1,11 +1,15 @@
 import json
 from asyncio import sleep
-from time import time
+from time import monotonic, time
 
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
 
 from backend.app.core.exceptions import AppError
+from backend.app.core.logging import get_logger
+
+
+logger = get_logger(__name__)
 
 
 class DocumentQueueError(AppError):
@@ -56,20 +60,42 @@ class RedisDocumentJobQueue:
         except RedisError as exc:
             raise DocumentQueueError(details={"error_type": type(exc).__name__}) from exc
 
-    async def acquire_document_lock(self, document_id: str, owner_id: str) -> str:
-        """Mutual exclusion for replacement versions across worker processes."""
+    async def acquire_document_lock(
+        self,
+        document_id: str,
+        owner_id: str,
+        *,
+        timeout_seconds: float = 30.0,
+        ttl_seconds: int = 3600,
+    ) -> str:
+        """Bounded mutual exclusion for replacement versions across worker processes."""
         key = f"rag:document-ingestion:replacement-lock:{document_id}"
-        while True:
-            acquired = await self.client.set(key, owner_id, nx=True, ex=3600)
+        deadline = monotonic() + max(timeout_seconds, 0.1)
+        while monotonic() < deadline:
+            try:
+                acquired = await self.client.set(key, owner_id, nx=True, ex=ttl_seconds)
+            except RedisError as exc:
+                raise DocumentQueueError(details={"error_type": type(exc).__name__}) from exc
             if acquired:
                 return key
             await sleep(0.25)
+        raise DocumentQueueError(
+            message="Timed out waiting for document replacement lock.",
+            details={"document_id": document_id},
+        )
 
     async def release_document_lock(self, key: str, owner_id: str) -> None:
         # Compare-and-delete prevents one worker releasing another's lease.
-        await self.client.eval(
-            "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) end return 0",
-            1,
-            key,
-            owner_id,
-        )
+        try:
+            await self.client.eval(
+                "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) end return 0",
+                1,
+                key,
+                owner_id,
+            )
+        except RedisError as exc:
+            logger.warning(
+                "document_lock_release_failed",
+                key=key,
+                error_type=type(exc).__name__,
+            )
