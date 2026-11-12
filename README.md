@@ -1,72 +1,32 @@
 # Production-Grade Retrieval-Augmented Generation (RAG) Platform
 
-A production-oriented Retrieval-Augmented Generation (RAG) application built step by step as part of my YouTube tutorial series.
+A full-stack, multi-tenant Retrieval-Augmented Generation (RAG) platform built with **FastAPI**, **Next.js**, **MySQL**, **Redis**, **ChromaDB**, **Hugging Face embeddings**, and pluggable LLMs (**Ollama** locally by default, **Google Gemini**, or **OpenAI**).
 
-This project goes beyond a basic “upload a PDF and ask questions” demo. The goal is to show how a more realistic AI application can be structured when we also need authentication, organizations, user roles, document management, vector search, rate limiting, security, testing, health checks, and a usable frontend.
-
-The backend is built with **FastAPI and Python**, while the frontend uses **Next.js and TypeScript**. MySQL stores relational application data, Chroma handles vector search, Redis is used for rate limiting and protection, Hugging Face models generate embeddings, and Gemini is used as the Large Language Model (LLM).
-
----
-
-## Application Preview
-
-<img width="1916" height="922" alt="1" src="https://github.com/user-attachments/assets/58b8e4e5-5ea0-4f05-ab4f-3466366141cb" />
-
+Beyond basic "upload a PDF and ask questions" demos, this platform implements JWT + refresh-token authentication, organization and department-level Role-Based Access Control (RBAC), asynchronous document ingestion via a Redis-backed worker, document lifecycle management (publish, unpublish, archive, and version replacement), audit logging, rate limiting, security middleware, health/readiness checks, and automated tests.
 
 ---
 
 ## What This Project Includes
 
-- Retrieval-Augmented Generation (RAG)
-- PDF document ingestion
-- Text cleaning and chunking
-- Hugging Face embeddings
-- Chroma vector database
-- Semantic retrieval
-- Gemini LLM integration
-- Grounded answers with source references
-- FastAPI REST API
-- Next.js frontend
-- MySQL database
-- Redis rate limiting
-- JWT authentication
-- Refresh-token flow
-- Organizations and team members
-- Role-Based Access Control (RBAC)
-- Owner, Admin, Member, and Viewer roles
-- Document upload and deletion
-- Vector cleanup during document deletion
-- Structured logging
-- Structured API errors
-- Security middleware
-- Health and readiness checks
-- Alembic database migrations
-- Automated backend tests
+- **Retrieval-Augmented Generation (RAG)** with grounded answers and source citations (`[S1]`, `[S2]`, ...)
+- **Multi-format Document Ingestion** supporting **PDF** and **DOCX** files (`PyPDF` / `python-docx` loaders & parsers, text cleaning, chunking, metadata building)
+- **Asynchronous Ingestion Worker** (`backend.app.workers.document_ingestion_worker`) with Redis job queueing, MySQL job state tracking, retry backoff, stale `PROCESSING` recovery, and monitoring telemetry
+- **Document Lifecycle & Versioning** with draft/publish/unpublish/archive controls, SHA-256 hash indexing, atomic version replacement, and Chroma vector synchronization/cleanup
+- **Local & Cloud LLM Support** via a unified provider factory:
+  - **Ollama** (`llama3.2:3b` default, local HTTP `/api/chat`, no API key required)
+  - **Google Gemini** (`gemini-2.5-flash`)
+  - **OpenAI** (`gpt-5.4-mini`)
+- **Hugging Face Embeddings** (`sentence-transformers/all-MiniLM-L6-v2` on CPU) and pluggable vector stores (**ChromaDB** persistent store, **Qdrant** adapter)
+- **Authentication & Security** with Argon2 password hashing, JWT access tokens, refresh-token rotation/logout, CORS, trusted hosts, and security headers middleware
+- **Organizations, Departments & RBAC**
+  - Organization roles: `owner`, `admin`, `member`, `viewer`
+  - Department roles: `department_admin`, `employee`
+  - Organization-wide and department-scoped document visibility + audit event logging
+- **Redis Sliding-Window / Counter Rate Limiting** per endpoint group (general, register, login, refresh, upload, RAG query)
+- **Next.js + TypeScript Frontend** with dedicated workspaces for Chat, Documents (upload, lifecycle actions, job status/monitoring), Members & Departments, and Settings
+- **Alembic Migrations & Pytest Suite** covering auth, RBAC, department roles, Chroma isolation, lifecycle/versioning, worker recovery, and LLM providers
 
 ---
-
-## YouTube Tutorial Series
-
-This repository is connected to my complete YouTube series where the application is developed step by step.
-
-The **`main` branch contains the latest complete application**, while the **`tutorial-series` branch follows the implementation step by step starting from Video 03**, where the coding part of the series begins.
-
-Each coding episode is also published as a GitHub Release, allowing viewers to download the exact project state used in that video.
-
-### Source Code
-
-- 💻 [Complete Production RAG Application](https://github.com/AnjumZahid/production-rag-tutorial-series)
-- 📘 [Step-by-Step Tutorial Code](https://github.com/AnjumZahid/production-rag-tutorial-series/tree/tutorial-series)
-- 📦 [Code Releases by Video](https://github.com/AnjumZahid/production-rag-tutorial-series/releases)
-
-### Tutorial Links
-
-- 📚 [Complete RAG Tutorial Playlist](https://www.youtube.com/watch?v=lEc8LZ3xnlI&list=PLUnnqkRIf4Xw)
-- 🎥 [YouTube Channel](https://www.youtube.com/@anjumzahid789)
-- 💼 [LinkedIn](https://www.linkedin.com/in/anjumzahid789)
-  
----
-
 
 ## High-Level Architecture
 
@@ -74,304 +34,116 @@ Each coding episode is also published as a GitHub Release, allowing viewers to d
 User
  │
  ▼
-Next.js Frontend
+Next.js Frontend (http://localhost:3000)
  │
  ▼
-FastAPI Backend
+FastAPI Backend (http://127.0.0.1:8000/api/v1)
  │
- ├── JWT Authentication
- ├── Role-Based Access Control
- ├── Document Management
+ ├── JWT Auth & Refresh Tokens
+ ├── Organization & Department RBAC
+ ├── Document Lifecycle & Job APIs
  ├── RAG Query Service
- └── Rate Limiting
+ ├── Audit Logging & Security Middleware
+ └── Redis Rate Limiting
  │
- ├───────────────┬───────────────┬───────────────┐
- ▼               ▼               ▼               ▼
-MySQL           Redis          Chroma        LLM Provider
-                                  │               │
-                                  ▼               ▼
-                              Vector Search     Gemini
-                                  │
-                                  ▼
-                           Relevant Chunks
-                                  │
-                                  └──────► Grounded Answer
+ ├───────────────┬───────────────┬───────────────┬───────────────┐
+ ▼               ▼               ▼               ▼               ▼
+MySQL          Redis          ChromaDB      Ingestion        LLM Provider
+(Users, Orgs,  (Rate Limits   (Tenant &     Worker           (Ollama /
+ Depts, Docs,   & Job Queue)   Dept-Scoped   (PDF/DOCX ->     Gemini /
+ Jobs, Audit)                  Vectors)       Embeddings)     OpenAI)
 ```
 
 ---
 
-## RAG Flow
+## Ingestion & RAG Flow
+
+### Asynchronous Document Ingestion
 
 ```text
-PDF Upload
-   │
-   ▼
-PDF Loader
-   │
-   ▼
-PDF Parser
-   │
-   ▼
-Text Cleaner
-   │
-   ▼
-Document Chunker
-   │
-   ▼
-Embedding Model
-   │
-   ▼
-Chroma Vector Database
+PDF / DOCX Upload ──► Local File Storage + MySQL Document/Job Record
+                             │
+                             ▼ (Job ID queued in Redis)
+                 Document Ingestion Worker
+                             │
+                             ▼
+           Loader (PDF/DOCX) ──► Parser ──► Text Cleaner ──► Chunker
+                             │
+                             ▼
+             Hugging Face Embeddings ──► ChromaDB (Org/Dept Isolated)
 ```
 
-When a user asks a question:
+### RAG Query Pipeline
 
 ```text
 User Question
     │
     ▼
-Question Embedding
+Query Embedding (Hugging Face)
     │
     ▼
-Similarity Search
+Chroma Similarity Search (Filtered by Organization, Department & Published Status)
     │
     ▼
-Relevant Document Chunks
+Retrieved Chunks + Grounding System Prompt
     │
     ▼
-Prompt + Retrieved Context
+LLM Provider (Ollama / Gemini / OpenAI)
     │
     ▼
-Gemini LLM
-    │
-    ▼
-Grounded Answer + Sources
+Grounded Answer + Source References
 ```
 
 ---
 
-# Project Structure
+## Project Structure
 
 ```text
-rag_platform/
-│
+.
 ├── backend/
-│   ├── app/
-│   │   ├── api/
-│   │   │   ├── __init__.py
-│   │   │   ├── app.py
-│   │   │   ├── auth_routes.py
-│   │   │   ├── auth_schemas.py
-│   │   │   ├── dependencies.py
-│   │   │   ├── document_management_routes.py
-│   │   │   ├── document_schemas.py
-│   │   │   ├── health_routes.py
-│   │   │   ├── health_schemas.py
-│   │   │   ├── middleware.py
-│   │   │   ├── organization_routes.py
-│   │   │   ├── organization_schemas.py
-│   │   │   ├── rate_limit_middleware.py
-│   │   │   ├── routes.py
-│   │   │   └── schemas.py
-│   │   │
-│   │   ├── auth/
-│   │   │   ├── __init__.py
-│   │   │   ├── jwt.py
-│   │   │   ├── passwords.py
-│   │   │   ├── roles.py
-│   │   │   └── service.py
-│   │   │
-│   │   ├── core/
-│   │   │   ├── __init__.py
-│   │   │   ├── config.py
-│   │   │   ├── exceptions.py
-│   │   │   └── logging.py
-│   │   │
-│   │   ├── database/
-│   │   │   ├── models/
-│   │   │   │   ├── __init__.py
-│   │   │   │   ├── auth.py
-│   │   │   │   ├── document.py
-│   │   │   │   └── membership.py
-│   │   │   │
-│   │   │   ├── repositories/
-│   │   │   │   ├── __init__.py
-│   │   │   │   ├── auth_repository.py
-│   │   │   │   ├── document_repository.py
-│   │   │   │   └── membership_repository.py
-│   │   │   │
-│   │   │   ├── __init__.py
-│   │   │   ├── base.py
-│   │   │   ├── enums.py
-│   │   │   └── session.py
-│   │   │
-│   │   ├── embeddings/
-│   │   │   ├── __init__.py
-│   │   │   ├── base.py
-│   │   │   ├── factory.py
-│   │   │   ├── huggingface.py
-│   │   │   └── openai.py
-│   │   │
-│   │   ├── generation/
-│   │   │   ├── __init__.py
-│   │   │   ├── prompts.py
-│   │   │   └── service.py
-│   │   │
-│   │   ├── ingestion/
-│   │   │   ├── loaders/
-│   │   │   │   ├── __init__.py
-│   │   │   │   ├── base.py
-│   │   │   │   └── pdf_loader.py
-│   │   │   │
-│   │   │   ├── parsers/
-│   │   │   │   ├── __init__.py
-│   │   │   │   ├── base.py
-│   │   │   │   └── pdf_parser.py
-│   │   │   │
-│   │   │   ├── processors/
-│   │   │   │   ├── __init__.py
-│   │   │   │   ├── chunker.py
-│   │   │   │   ├── metadata_builder.py
-│   │   │   │   └── text_cleaner.py
-│   │   │   │
-│   │   │   └── __init__.py
-│   │   │
-│   │   ├── llms/
-│   │   │   ├── __init__.py
-│   │   │   ├── base.py
-│   │   │   ├── factory.py
-│   │   │   ├── gemini_ai.py
-│   │   │   └── openai_provider.py
-│   │   │
-│   │   ├── organizations/
-│   │   │   ├── __init__.py
-│   │   │   └── service.py
-│   │   │
-│   │   ├── rate_limiting/
-│   │   │   ├── __init__.py
-│   │   │   ├── dependencies.py
-│   │   │   ├── exceptions.py
-│   │   │   └── service.py
-│   │   │
-│   │   ├── retrieval/
-│   │   │   ├── __init__.py
-│   │   │   └── service.py
-│   │   │
-│   │   ├── services/
-│   │   │   ├── __init__.py
-│   │   │   ├── document_ingestion.py
-│   │   │   ├── document_management.py
-│   │   │   ├── health_service.py
-│   │   │   └── rag_query.py
-│   │   │
-│   │   ├── vectorstores/
-│   │   │   ├── __init__.py
-│   │   │   ├── chroma_store.py
-│   │   │   ├── factory.py
-│   │   │   └── qdrant_store.py
-│   │   │
-│   │   ├── __init__.py
-│   │   └── main.py
-│   │
-│   └── __init__.py
-│
-├── data/
-│   └── .gitkeep
-│
-├── docs/
-│   ├── images/
-│   │   ├── chat-rag.png
-│   │   ├── dashboard.png
-│   │   ├── documents.png
-│   │   └── landing-page.png
-│   │
-│   └── who_pen_guidelines.pdf
+│   └── app/
+│       ├── api/                        # FastAPI app, routes, schemas, middleware, rate limiting
+│       │   ├── app.py
+│       │   ├── auth_routes.py
+│       │   ├── department_routes.py
+│       │   ├── document_management_routes.py
+│       │   ├── health_routes.py
+│       │   ├── organization_routes.py
+│       │   ├── routes.py
+│       │   ├── middleware.py
+│       │   └── rate_limit_middleware.py
+│       ├── auth/                       # JWT, Argon2 password hashing, RBAC roles, auth service
+│       ├── core/                       # Settings (pydantic-settings), exceptions, structlog logging
+│       ├── database/                   # SQLAlchemy async models, enums, repositories, session
+│       ├── embeddings/                 # Embedding factory (Hugging Face, OpenAI)
+│       ├── generation/                 # Grounded RAG prompt templates & generation service
+│       ├── ingestion/                  # PDF/DOCX loaders, parsers, cleaner, chunker, metadata builder
+│       ├── llms/                       # LLM factory (Ollama, Gemini, OpenAI)
+│       ├── organizations/              # Organization & department services
+│       ├── rate_limiting/              # Redis rate limiter & dependencies
+│       ├── retrieval/                  # Tenant-isolated semantic retrieval service
+│       ├── services/                   # Document management, ingestion, file storage, job queue, telemetry, RAG query, health
+│       ├── vectorstores/               # ChromaDB & Qdrant vector store adapters
+│       ├── workers/                    # Background document ingestion worker
+│       └── main.py                     # Uvicorn ASGI entrypoint
 │
 ├── frontend/
 │   ├── app/
-│   │   ├── (auth)/
-│   │   │   └── ... authentication pages ...
-│   │   ├── (dashboard)/
-│   │   │   └── ... dashboard pages ...
-│   │   ├── globals.css
-│   │   ├── layout.tsx
-│   │   └── page.tsx
-│   │
-│   ├── components/
-│   │   ├── chat/
-│   │   │   └── ... RAG/chat components ...
-│   │   ├── documents/
-│   │   │   └── ... document components ...
-│   │   ├── layout/
-│   │   │   └── ... shared layout components ...
-│   │   ├── members/
-│   │   │   └── ... member-management components ...
-│   │   ├── providers/
-│   │   │   └── ... React/global providers ...
-│   │   └── settings/
-│   │       └── ... settings components ...
-│   │
-│   ├── lib/
-│   │   └── ... API/auth/helper logic ...
-│   │
+│   │   ├── (auth)/                     # login & register pages
+│   │   └── (dashboard)/                # chat, documents, members, settings pages
+│   ├── components/                     # chat, documents, members, settings, layout, providers
+│   ├── lib/                            # Typed API client, formatters, TypeScript types
 │   ├── .env.example
-│   ├── .gitignore
-│   ├── next-env.d.ts
-│   ├── next.config.ts
-│   ├── package.json
-│   ├── openapi.json
 │   ├── API_CONTRACT.md
-│   ├── pnpm-lock.yaml
-│   ├── pnpm-workspace.yaml
-│   ├── README.md
-│   ├── setup.ps1
-│   ├── tsconfig.json
-│   └── VALIDATION.md
+│   ├── openapi.json
+│   └── package.json
 │
-├── migrations/
-│   ├── versions/
-│   │   ├── REVISION_create_document_registry_tables.py
-│   │   └── REVISION_create_organization_membership_records.py
-│   ├── env.py
-│   ├── README
-│   └── script.py.mako
-│
-├── scripts/
-│   ├── __init__.py
-│   ├── create_dev_token.py
-│   └── export_openapi.py
-│
-├── tests/
-│   ├── test_api_endpoints.py
-│   ├── test_backend_contract.py
-│   ├── test_chroma_store.py
-│   ├── test_chunker.py
-│   ├── test_database_connection.py
-│   ├── test_document_ingestion_service.py
-│   ├── test_document_management.py
-│   ├── test_document_repository.py
-│   ├── test_gemini_llm_provider.py
-│   ├── test_generation_service.py
-│   ├── test_health_endpoints.py
-│   ├── test_huggingface_embeddings.py
-│   ├── test_jwt_auth.py
-│   ├── test_membership_foundation.py
-│   ├── test_metadata_builder.py
-│   ├── test_pdf_loader.py
-│   ├── test_pdf_parser.py
-│   ├── test_rate_limiting.py
-│   ├── test_real_auth_flow.py
-│   ├── test_real_component_interfaces.py
-│   ├── test_real_document_ingestion.py
-│   ├── test_real_rag_query.py
-│   ├── test_retrieval_service.py
-│   ├── test_role_authorization.py
-│   ├── test_security_middleware.py
-│   └── test_text_cleaner.py
-│
+├── migrations/                         # Alembic environment & schema revisions
+│   └── versions/
+├── scripts/                            # Dev token & OpenAPI export utilities
+├── tests/                              # Unit and integration pytest suite
 ├── .env.example
 ├── .env.docker.example
-├── .gitignore
 ├── alembic.ini
 ├── compose.yml
 ├── pyproject.toml
@@ -380,173 +152,160 @@ rag_platform/
 
 ---
 
-# Running the Project
+## Running the Project
 
-## 1. Clone the Repository
+### 1. Configure Backend Environment
 
-```bash
-git clone https://github.com/AnjumZahid/production-rag-tutorial-series.git
-cd production-rag-tutorial-series
-```
-
-## 2. Configure Backend Environment
-
-Create your local `.env` file from the example:
-
-### Windows PowerShell
+Copy the example environment file and update database credentials, JWT secret, and (optionally) cloud LLM keys:
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-Update the required database credentials, API keys, and other configuration values inside `.env`.
+By default, `.env.example` configures **local Ollama** (`LLM_PROVIDER=ollama`, `OLLAMA_LLM_MODEL=llama3.2:3b`), **Hugging Face embeddings** (`sentence-transformers/all-MiniLM-L6-v2`), **ChromaDB** (`./data/chroma`), **MySQL**, and **Redis**.
 
-Never commit your real `.env` file.
+If using Ollama locally, ensure Ollama is running and the model is pulled:
 
-## 3. Install Backend Dependencies
+```bash
+ollama pull llama3.2:3b
+```
 
-This project uses `uv` for Python dependency management.
+*(To use Gemini or OpenAI instead, set `LLM_PROVIDER=gemini` with `GEMINI_API_KEY` or `LLM_PROVIDER=openai` with `OPENAI_API_KEY` in `.env`.)*
+
+### 2. Install Backend Dependencies
+
+This project uses `uv` for Python dependency management (Python 3.12+):
 
 ```bash
 uv sync
 ```
 
-## 4. Start Required Services
+### 3. Start Required Services (MySQL & Redis)
 
-MySQL and Redis can be started using Docker Compose:
+Start MySQL via Docker Compose (copy `.env.docker.example` to `.env.docker` and align credentials with `DATABASE_URL` in `.env` first):
 
 ```bash
 docker compose up -d
 ```
 
-## 5. Apply Database Migrations
+Make sure a Redis server is also running on `127.0.0.1:6379` (for rate limiting and worker job queueing), e.g. via Docker:
+
+```bash
+docker run -d --name rag-redis -p 127.0.0.1:6379:6379 redis:7-alpine
+```
+
+### 4. Apply Database Migrations
 
 ```bash
 uv run alembic upgrade head
 ```
 
-## 6. Start the FastAPI Backend
+### 5. Start the FastAPI Backend
 
 ```bash
 uv run uvicorn backend.app.main:app --reload
 ```
 
-Backend:
+- **Backend API**: `http://127.0.0.1:8000`
+- **Swagger UI**: `http://127.0.0.1:8000/docs`
 
-```text
-http://127.0.0.1:8000
+### 6. Start the Document Ingestion Worker
+
+In a separate terminal, start the background worker so uploaded documents are parsed, chunked, embedded, and indexed:
+
+```bash
+uv run python -m backend.app.workers.document_ingestion_worker
 ```
 
-Swagger API documentation:
+### 7. Start the Frontend
 
-```text
-http://127.0.0.1:8000/docs
-```
-
-## 7. Start the Frontend
-
-Open another terminal:
+In another terminal:
 
 ```bash
 cd frontend
 ```
 
-Create the frontend environment file:
+Create `.env.local`:
 
 ```powershell
 Copy-Item .env.example .env.local
 ```
 
-Install frontend dependencies:
+Install dependencies and start Next.js (`pnpm` or `npm`):
 
 ```bash
-pnpm install
+npm install
+npm run dev
 ```
 
-Start Next.js:
-
-```bash
-pnpm dev
-```
-
-Open the frontend in your browser using the URL shown by Next.js.
+Open `http://localhost:3000` in your browser.
 
 ---
 
-# API Overview
+## API Overview
 
-The application includes APIs for:
+All routes are served under `/api/v1`:
 
 ```text
-Authentication
-├── Register
-├── Login
-├── Refresh Token
-├── Logout
-└── Current User
+Authentication (/api/v1/auth)
+├── POST   /register
+├── POST   /login
+├── POST   /refresh
+├── POST   /logout
+└── GET    /me
 
-Organizations
-├── Current Organization
-├── List Members
-├── Add Member
-├── Update Member Role
-└── Remove Member
+Organizations & Departments (/api/v1/organizations/current)
+├── GET    /
+├── GET    /members
+├── POST   /members
+├── PATCH  /members/{membership_id}/role
+├── DELETE /members/{membership_id}
+├── GET    /departments
+├── POST   /departments
+├── GET    /departments/{department_id}/members
+├── POST   /departments/{department_id}/members
+├── PATCH  /departments/{department_id}/members/{membership_id}/role
+└── DELETE /departments/{department_id}/members/{membership_id}
 
-Documents
-├── Upload Document
-├── List Documents
-├── Get Document
-└── Delete Document
+Documents & Ingestion Jobs (/api/v1/documents)
+├── POST   /
+├── GET    /
+├── GET    /{document_id}
+├── POST   /{document_id}/publish
+├── POST   /{document_id}/unpublish
+├── POST   /{document_id}/archive
+├── DELETE /{document_id}
+├── GET    /jobs/{job_id}
+├── POST   /jobs/{job_id}/retry
+└── GET    /monitoring
 
-RAG
-└── Query uploaded knowledge
+RAG (/api/v1/rag)
+└── POST   /query
 
-Health
-├── Health
-├── Liveness
-└── Readiness
+Health (/api/v1/health)
+├── GET    /
+├── GET    /live
+└── GET    /ready
 ```
 
 ---
 
-# Why This Repository Exists
+## Testing & Verification
 
-There are already many good tutorials showing the basic Retrieval-Augmented Generation (RAG) workflow.
+Run the backend test suite:
 
-With this project, I wanted to focus on what happens after the basic RAG demo works.
+```bash
+uv run pytest
+```
 
-How should users be authenticated?  
-Where should application data be stored?  
-How should team permissions work?  
-What happens to vectors when a document is deleted?  
-How should rate limiting, structured errors, testing, and health checks be handled?
+Run frontend TypeScript checks:
 
-These are the kinds of questions that start becoming important when a prototype grows into a real application.
-
-The YouTube series follows the same idea. Instead of jumping directly to the final code, the project is built gradually so that each component and architectural decision can be understood separately.
+```bash
+npm --prefix frontend run typecheck
+```
 
 ---
 
-# Contributing
+## Disclaimer
 
-This repository primarily supports the YouTube tutorial series, but suggestions, improvements, bug reports, and discussions are welcome.
-
-If you find an issue while following one of the episodes, please open a GitHub Issue and mention the episode number you are following.
-
----
-
-# Disclaimer
-
-This project is intended for educational and development purposes.
-
-Before using it in a real production environment, review the security configuration, secrets management, deployment architecture, monitoring, storage, backup strategy, LLM usage limits, and other requirements specific to your environment.
-
----
-
-# Connect
-
-- 📚 [Complete RAG Tutorial Playlist](https://www.youtube.com/watch?v=lEc8LZ3xnlI&list=PLUnnqkRIf4Xw)
-- 🎥 [YouTube Channel](https://www.youtube.com/@anjumzahid789)
-- 💼 [LinkedIn](https://www.linkedin.com/in/anjumzahid789)
-
-If this project helps you understand Retrieval-Augmented Generation (RAG) or production-oriented AI application development, consider starring the repository and following the complete tutorial series.
+This project is intended for educational and development purposes. Before deploying to a production environment, review secrets management, database/Redis security, HTTPS/HSTS settings, LLM usage limits, backup strategies, and access controls.
