@@ -133,7 +133,7 @@ class Settings(BaseSettings):
     # LLM provider configuration
     # ===========================================================
 
-    llm_provider: Literal["openai", "gemini"] = "gemini"
+    llm_provider: Literal["openai", "gemini", "ollama"] = "gemini"
 
     # ===========================================================
     # OpenAI LLM configuration
@@ -213,6 +213,50 @@ class Settings(BaseSettings):
     gemini_llm_thinking_budget: int = Field(
         default=0,
         ge=-1,
+    )
+
+    # ===========================================================
+    # Local Ollama LLM configuration
+    # ===========================================================
+
+    ollama_base_url: str = "http://127.0.0.1:11434"
+
+    ollama_llm_model: str = "llama3.2:3b"
+
+    ollama_llm_timeout_seconds: float = Field(
+        default=120.0,
+        ge=1.0,
+        le=600.0,
+    )
+
+    ollama_llm_max_retries: int = Field(
+        default=2,
+        ge=0,
+        le=10,
+    )
+
+    ollama_llm_initial_retry_delay_seconds: float = Field(
+        default=1.0,
+        ge=0.1,
+        le=60.0,
+    )
+
+    ollama_llm_max_retry_delay_seconds: float = Field(
+        default=30.0,
+        ge=1.0,
+        le=300.0,
+    )
+
+    ollama_llm_max_output_tokens: int = Field(
+        default=1200,
+        ge=64,
+        le=65_536,
+    )
+
+    ollama_llm_temperature: float = Field(
+        default=0.2,
+        ge=0.0,
+        le=2.0,
     )
 
     # ===========================================================
