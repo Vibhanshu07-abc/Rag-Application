@@ -219,6 +219,30 @@ async def test_rag_query_grounding_citations_isolation_and_provider_failures(
     assert payload["sources"][0]["document_id"] == eng_pub_id
     assert payload["sources"][0]["filename"] == "eng-sla.pdf"
     assert payload["sources"][0]["page_number"] == 1
+    assert payload["cached"] is False
+
+    # Second query -> Cache HIT (served from Redis, LLM not called again)
+    call_count_before = len(llm_provider.calls)
+    cached_res = await api_client.post(
+        "/api/v1/rag/query",
+        headers=emp_headers,
+        json={"knowledge_base_id": "default", "query": "Engineering SLA executive bonus"},
+    )
+    assert cached_res.status_code == 200
+    cached_payload = cached_res.json()
+    assert cached_payload["cached"] is True
+    assert len(llm_provider.calls) == call_count_before
+
+    # Third query with bypass_cache=True -> Cache bypassed & refreshed (LLM called)
+    bypass_res = await api_client.post(
+        "/api/v1/rag/query",
+        headers=emp_headers,
+        json={"knowledge_base_id": "default", "query": "Engineering SLA executive bonus", "bypass_cache": True},
+    )
+    assert bypass_res.status_code == 200
+    bypass_payload = bypass_res.json()
+    assert bypass_payload["cached"] is False
+    assert len(llm_provider.calls) == call_count_before + 1
 
     # LLM provider unavailability returns clean 503 error
     llm_provider.error_to_raise = LLMProviderError(message="Gemini quota exhausted.")
