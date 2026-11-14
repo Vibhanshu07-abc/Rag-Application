@@ -167,6 +167,8 @@ a { color: inherit; }
 .message-meta { display: flex; align-items: center; gap: 9px; margin-bottom: 9px; }
 .message-meta strong { font-size: 13px; }
 .grounded-label { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 9px; font-weight: 750; text-transform: uppercase; letter-spacing: .05em; }
+.cached-label { background: #e0f2fe; color: #0284c7; }
+html[data-theme="dark"] .cached-label { background: #0c4a6e; color: #38bdf8; }
 .markdown { font-size: 14px; line-height: 1.75; color: var(--text); overflow-wrap: anywhere; }
 .markdown p { margin: 0 0 13px; }
 .markdown p:last-child { margin-bottom: 0; }

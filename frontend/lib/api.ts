@@ -236,6 +236,7 @@ export function normalizeRagResponse(value: unknown): RagResponse {
       };
     }),
     retrieved_chunk_count: typeof data.retrieved_chunk_count === "number" ? data.retrieved_chunk_count : sourceList.length,
+    cached: boolValue(data.cached, false),
   };
 }
 

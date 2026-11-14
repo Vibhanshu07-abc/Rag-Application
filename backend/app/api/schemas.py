@@ -28,6 +28,7 @@ class RAGQueryRequest(BaseModel):
         le=20,
     )
     document_id: str | None = None
+    bypass_cache: bool = False
 
 
 class RAGSourceResponse(BaseModel):
@@ -45,6 +46,7 @@ class RAGQueryResponse(BaseModel):
     citations: list[str]
     sources: list[RAGSourceResponse]
     retrieved_chunk_count: int
+    cached: bool = False
 
 
 class ErrorDetail(BaseModel):

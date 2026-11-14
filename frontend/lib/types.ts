@@ -86,6 +86,7 @@ export interface RagResponse {
   citations: string[];
   sources: RagSource[];
   retrieved_chunk_count: number;
+  cached?: boolean;
 }
 
 export type ChatMessageRole = "user" | "assistant";
@@ -99,6 +100,7 @@ export interface ChatMessage {
   sources?: RagSource[];
   requestId?: string;
   failed?: boolean;
+  cached?: boolean;
 }
 
 export interface Conversation {

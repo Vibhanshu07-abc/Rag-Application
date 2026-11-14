@@ -1,4 +1,6 @@
 import asyncio
+import hashlib
+import json
 from pathlib import Path
 
 from fastapi import (
@@ -441,6 +443,34 @@ async def rag_query(
         access=access,
     )
 
+    query_normalized = " ".join(request.query.lower().strip().split())
+    query_hash = hashlib.sha256(query_normalized.encode("utf-8")).hexdigest()
+    cache_key = (
+        f"rag_cache:{access.organization_id}:{request.knowledge_base_id}:"
+        f"{request.document_id or 'all'}:{query_hash}"
+    )
+
+    redis_client = get_redis_client()
+
+    if not request.bypass_cache:
+        try:
+            cached_raw = await redis_client.get(cache_key)
+            if cached_raw:
+                cached_data = json.loads(cached_raw)
+                cached_data["cached"] = True
+                logger.info(
+                    "rag_query_cache_hit",
+                    organization_id=access.organization_id,
+                    knowledge_base_id=request.knowledge_base_id,
+                    document_id=request.document_id,
+                )
+                return RAGQueryResponse(**cached_data)
+        except Exception as exc:
+            logger.warning(
+                "rag_query_cache_read_failed",
+                error=str(exc),
+            )
+
     vector_store = get_vector_store(
         embedding_provider=embedding_provider,
         organization_id=access.organization_id,
@@ -476,7 +506,7 @@ async def rag_query(
         if callable(close_method):
             await asyncio.to_thread(close_method)
 
-    return RAGQueryResponse(
+    response = RAGQueryResponse(
         query=result.query,
         answer=result.answer,
         grounded=result.grounded,
@@ -492,7 +522,25 @@ async def rag_query(
             for source in result.sources
         ],
         retrieved_chunk_count=result.retrieved_chunk_count,
+        cached=False,
     )
+
+    try:
+        await redis_client.set(
+            cache_key,
+            response.model_dump_json(),
+        )
+        logger.info(
+            "rag_query_cache_stored",
+            cache_key=cache_key,
+        )
+    except Exception as exc:
+        logger.warning(
+            "rag_query_cache_write_failed",
+            error=str(exc),
+        )
+
+    return response
 
 
 # =============================================================

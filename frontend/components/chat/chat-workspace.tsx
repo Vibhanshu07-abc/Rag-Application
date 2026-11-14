@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, BookOpen, Check, ChevronDown, Copy, FileText, Info, LoaderCircle, PanelTop, RotateCcw, Sparkles } from "lucide-react";
+import { ArrowUp, BookOpen, Check, ChevronDown, Copy, FileText, Info, LoaderCircle, PanelTop, RotateCcw, Sparkles, Zap } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -66,7 +66,7 @@ export function ChatWorkspace() {
 
   if (!activeConversation) return <div className="workspace-loader"><span className="spinner" /></div>;
 
-  async function sendMessage(text: string) {
+  async function sendMessage(text: string, options?: { bypassCache?: boolean }) {
     const clean = text.trim();
     if (!clean || sending || !activeConversation) return;
     if (!activeConversation.knowledgeBaseId.trim()) {
@@ -75,9 +75,11 @@ export function ChatWorkspace() {
     }
 
     const conversationId = activeConversation.id;
-    const userMessage: ChatMessage = { id: crypto.randomUUID(), role: "user", content: clean, createdAt: new Date().toISOString() };
-    appendMessage(conversationId, userMessage);
-    setInput("");
+    if (!options?.bypassCache) {
+      const userMessage: ChatMessage = { id: crypto.randomUUID(), role: "user", content: clean, createdAt: new Date().toISOString() };
+      appendMessage(conversationId, userMessage);
+      setInput("");
+    }
     setSending(true);
 
     try {
@@ -86,6 +88,7 @@ export function ChatWorkspace() {
         query: clean,
         k: activeConversation.topK,
         document_id: activeConversation.documentId || undefined,
+        bypass_cache: Boolean(options?.bypassCache),
       };
       const response = await apiFetch<unknown>("/rag/query", { method: "POST", body: JSON.stringify(payload) });
       const result = normalizeRagResponse(response);
@@ -96,6 +99,7 @@ export function ChatWorkspace() {
         createdAt: new Date().toISOString(),
         grounded: result.grounded,
         sources: result.sources,
+        cached: result.cached,
       });
     } catch (error) {
       const apiError = error instanceof ApiError ? error : null;
@@ -113,6 +117,23 @@ export function ChatWorkspace() {
       setSending(false);
       window.setTimeout(() => textareaRef.current?.focus(), 50);
     }
+  }
+
+  function handleRegenerate(messageIndex: number) {
+    if (!activeConversation) return;
+    const list = activeConversation.messages;
+    let query = "";
+    for (let i = messageIndex - 1; i >= 0; i--) {
+      if (list[i]?.role === "user") {
+        query = list[i].content;
+        break;
+      }
+    }
+    if (!query) {
+      showToast({ tone: "error", title: "Cannot regenerate", description: "Could not find the question for this message." });
+      return;
+    }
+    void sendMessage(query, { bypassCache: true });
   }
 
   function handleSubmit(event: FormEvent) {
@@ -165,15 +186,28 @@ export function ChatWorkspace() {
           </div>
         ) : (
           <div className="message-thread">
-            {activeConversation.messages.map((message) => (
+            {activeConversation.messages.map((message, index) => (
               <article className={`message ${message.role} ${message.failed ? "failed" : ""}`} key={message.id}>
                 <div className="message-avatar">{message.role === "assistant" ? <Sparkles size={17} /> : "You"}</div>
                 <div className="message-body">
-                  <div className="message-meta"><strong>{message.role === "assistant" ? "Knowledge Chat" : "You"}</strong>{message.role === "assistant" && message.grounded ? <span className="grounded-label"><Check size={12} /> Grounded</span> : null}</div>
+                  <div className="message-meta">
+                    <strong>{message.role === "assistant" ? "Knowledge Chat" : "You"}</strong>
+                    {message.role === "assistant" && message.grounded ? <span className="grounded-label"><Check size={12} /> Grounded</span> : null}
+                    {message.role === "assistant" && message.cached ? <span className="grounded-label cached-label"><Zap size={12} /> Cached</span> : null}
+                  </div>
                   <div className="markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown></div>
                   {message.requestId ? <p className="request-id">Request ID: {message.requestId}</p> : null}
                   {message.sources?.length ? <SourceList sources={message.sources} /> : null}
-                  {message.role === "assistant" && !message.failed ? <div className="message-actions"><button onClick={() => void copyText(message.id, message.content)}>{copied === message.id ? <Check size={15} /> : <Copy size={15} />} {copied === message.id ? "Copied" : "Copy"}</button></div> : null}
+                  {message.role === "assistant" && !message.failed ? (
+                    <div className="message-actions">
+                      <button onClick={() => void copyText(message.id, message.content)}>
+                        {copied === message.id ? <Check size={15} /> : <Copy size={15} />} {copied === message.id ? "Copied" : "Copy"}
+                      </button>
+                      <button onClick={() => void handleRegenerate(index)} disabled={sending} title="Re-query without cache">
+                        <RotateCcw size={14} /> Regenerate
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               </article>
             ))}
