@@ -244,6 +244,32 @@ async def test_rag_query_grounding_citations_isolation_and_provider_failures(
     assert bypass_payload["cached"] is False
     assert len(llm_provider.calls) == call_count_before + 1
 
+    # Cross-department RBAC cache isolation test:
+    # 1. Admin (has Finance access) queries finance document -> answer is cached
+    admin_fin_res = await api_client.post(
+        "/api/v1/rag/query",
+        headers=admin_headers,
+        json={"knowledge_base_id": "default", "document_id": fin_doc_id, "query": "What is the executive bonus pool?"},
+    )
+    assert admin_fin_res.status_code == 200
+    assert admin_fin_res.json()["grounded"] is True
+    assert admin_fin_res.json()["sources"][0]["document_id"] == fin_doc_id
+    assert admin_fin_res.json()["sources"][0]["filename"] == "finance.pdf"
+
+    # 2. Engineering employee queries the EXACT same question and document -> MUST NOT receive cached Finance answer
+    emp_fin_res = await api_client.post(
+        "/api/v1/rag/query",
+        headers=emp_headers,
+        json={"knowledge_base_id": "default", "document_id": fin_doc_id, "query": "What is the executive bonus pool?"},
+    )
+    assert emp_fin_res.status_code == 200
+    emp_fin_payload = emp_fin_res.json()
+    assert emp_fin_payload["grounded"] is False
+    assert emp_fin_payload["retrieved_chunk_count"] == 0
+    assert emp_fin_payload["citations"] == []
+    assert emp_fin_payload["sources"] == []
+    assert emp_fin_payload["cached"] is False
+
     # LLM provider unavailability returns clean 503 error
     llm_provider.error_to_raise = LLMProviderError(message="Gemini quota exhausted.")
     llm_err = await api_client.post(

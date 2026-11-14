@@ -443,11 +443,14 @@ async def rag_query(
         access=access,
     )
 
+    dept_scope = ",".join(sorted(department_ids)) if department_ids else "no_dept"
+    dept_hash = hashlib.sha256(dept_scope.encode("utf-8")).hexdigest()
+
     query_normalized = " ".join(request.query.lower().strip().split())
     query_hash = hashlib.sha256(query_normalized.encode("utf-8")).hexdigest()
     cache_key = (
         f"rag_cache:{access.organization_id}:{request.knowledge_base_id}:"
-        f"{request.document_id or 'all'}:{query_hash}"
+        f"{dept_hash}:{request.document_id or 'all'}:{query_hash}"
     )
 
     redis_client = get_redis_client()
@@ -463,6 +466,7 @@ async def rag_query(
                     organization_id=access.organization_id,
                     knowledge_base_id=request.knowledge_base_id,
                     document_id=request.document_id,
+                    dept_hash=dept_hash,
                 )
                 return RAGQueryResponse(**cached_data)
         except Exception as exc:
