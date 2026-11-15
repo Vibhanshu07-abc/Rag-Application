@@ -1,4 +1,4 @@
-# Knowledge Chat — Multi-Tenant RAG Platform
+# Organizational Knowledge Intelligence System — Multi-Tenant RAG Platform
 
 Most RAG demos stop right after "upload a PDF, embed it, and ask a question." This project is built around everything that comes *after* that first prototype works: user accounts, organizations and departments, role-based access, background ingestion that doesn't block HTTP requests, document publishing and version control, rate limiting, and local or cloud LLM support.
 
